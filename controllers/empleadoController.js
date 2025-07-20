@@ -166,51 +166,60 @@ const empleadoController = {
     }
   },
 
-   // Eliminar empleado (eliminación completa)
-  async eliminarEmpleado(req, res) {
-    try {
-      const { id } = req.params;
-      
-      // Verificar si el empleado existe
-      const empleadoExistente = await Empleado.obtenerPorId(id);
-      if (!empleadoExistente) {
-        return res.status(404).json({
-          success: false,
-          message: 'Empleado no encontrado'
-        });
-      }
-      
-      // Eliminar empleado permanentemente
-      const result = await Empleado.eliminar(id);
-      
-      if (result.affectedRows === 0) {
-        return res.status(404).json({
-          success: false,
-          message: 'Empleado no encontrado o ya eliminado'
-        });
-      }
-      
-      res.json({
-        success: true,
-        message: 'Empleado eliminado permanentemente'
-      });
-    } catch (error) {
-      console.error('Error al eliminar empleado:', error);
-      
-      // Manejo específico para errores de clave foránea
-      if (error.code === 'ER_ROW_IS_REFERENCED_2') {
-        return res.status(400).json({
-          success: false,
-          message: 'No se puede eliminar el empleado porque tiene registros asociados'
-        });
-      }
-      
-      res.status(500).json({
+   // Eliminar empleado (eliminación completa con CASCADE)
+async eliminarEmpleado(req, res) {
+  try {
+    const { id } = req.params;
+    console.log(`🗑️ Intentando eliminar empleado: ${id}`);
+    
+    // Verificar si el empleado existe
+    console.log('Verificando si el empleado existe...');
+    const empleadoExistente = await Empleado.obtenerPorId(id);
+    if (!empleadoExistente) {
+      console.log(`❌ Empleado ${id} no encontrado`);
+      return res.status(404).json({
         success: false,
-        message: 'Error interno del servidor'
+        message: 'Empleado no encontrado'
       });
     }
-  },
+    
+    console.log(`✅ Empleado ${id} encontrado:`, empleadoExistente.nombre_completo);
+    console.log('Iniciando eliminación en cascada...');
+    
+    // NUEVO: Eliminar registros asociados EN CASCADA
+    const result = await Empleado.eliminarConCascade(id);
+    
+    console.log(`✅ Resultado de eliminación:`, result);
+    
+    if (result.affectedRows === 0) {
+      console.log(`❌ No se pudo eliminar empleado ${id} - 0 filas afectadas`);
+      return res.status(404).json({
+        success: false,
+        message: 'Empleado no encontrado o ya eliminado'
+      });
+    }
+    
+    console.log(`✅ Empleado ${id} eliminado exitosamente`);
+    
+    res.json({
+      success: true,
+      message: 'Empleado y registros asociados eliminados permanentemente'
+    });
+    
+  } catch (error) {
+    console.error('💥 ERROR DETALLADO al eliminar empleado:', error);
+    console.error('Stack trace completo:', error.stack);
+    console.error('Código de error:', error.code);
+    console.error('SQL State:', error.sqlState);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor: ' + error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+},
+
 
   // Buscar empleados
   async buscarEmpleados(req, res) {

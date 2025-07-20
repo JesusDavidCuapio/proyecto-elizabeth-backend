@@ -70,6 +70,9 @@ async obtenerVentasRegistradas(req, res) {
   try {
     const ventas = await Venta.obtenerVentasCompletas();
     
+    console.log('Ventas obtenidas:', ventas.length);
+    console.log('Primera venta fecha:', ventas[0]?.fecha_venta);
+    
     res.json({
       success: true,
       data: ventas

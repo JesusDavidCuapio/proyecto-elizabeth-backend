@@ -124,21 +124,81 @@ class Empleado {
     }
   }
 
-  // Eliminar empleado (eliminación completa de la base de datos)
-  static async eliminar(id) {
-    const query = `
-      DELETE FROM empleados 
-      WHERE id_empleado = ?
-    `;
+  // Eliminar empleado CON CASCADA MANUAL (eliminar registros asociados)
+static async eliminarConCascade(id) {
+  console.log(`🔧 Iniciando eliminación en cascada para empleado: ${id}`);
+  
+  try {
+    // Primero verificar que exista el empleado
+    const empleadoExistente = await db.execute(
+      'SELECT id_empleado FROM empleados WHERE id_empleado = ?',
+      [id]
+    );
     
-    try {
-      const [result] = await db.execute(query, [id]);
-      return result;
-    } catch (error) {
-      console.error('Error al eliminar empleado:', error);
-      throw error;
+    if (empleadoExistente[0].length === 0) {
+      console.log(`❌ Empleado ${id} no existe en la base de datos`);
+      return { affectedRows: 0 };
     }
+    
+    console.log(`✅ Empleado ${id} existe, procediendo con eliminación...`);
+
+    // Crear empleado "ELIMINADO" si no existe
+    try {
+      await db.execute(`
+        INSERT INTO empleados (id_empleado, nombre_completo, usuario, contrasena, telefono, cargo, activo)
+        VALUES ('ELIMINADO', 'Empleado Eliminado', 'eliminado', '$2a$10$dummy.hash.value', 'N/A', 'Cajero', 0)
+        ON DUPLICATE KEY UPDATE nombre_completo = 'Empleado Eliminado'
+      `);
+      console.log('✅ Empleado ELIMINADO creado/verificado');
+    } catch (insertError) {
+      console.log('⚠️ Empleado ELIMINADO ya existe o error menor:', insertError.message);
+    }
+
+    // 1. Actualizar reportes de productos (en lugar de eliminar)
+    await db.execute(
+      'UPDATE reportes_productos SET id_empleado = ? WHERE id_empleado = ?', 
+      ['ELIMINADO', id]
+    );
+    console.log('✅ Reportes de productos actualizados');
+
+    // 2. Actualizar recepciones de productos (en lugar de eliminar)
+    await db.execute(
+      'UPDATE recepcion_productos SET id_empleado = ? WHERE id_empleado = ?', 
+      ['ELIMINADO', id]
+    );
+    console.log('✅ Recepciones de productos actualizadas');
+
+    // 3. Actualizar movimientos de inventario
+    await db.execute(
+      'UPDATE movimientos_inventario SET id_empleado = ? WHERE id_empleado = ?', 
+      ['ELIMINADO', id]
+    );
+    console.log('✅ Movimientos de inventario actualizados');
+
+    // 4. Actualizar ventas (preservar historial)
+    await db.execute(
+      'UPDATE ventas SET id_empleado = ? WHERE id_empleado = ?', 
+      ['ELIMINADO', id]
+    );
+    console.log('✅ Ventas actualizadas');
+
+    // 5. Finalmente, eliminar el empleado
+    const [result] = await db.execute(
+      'DELETE FROM empleados WHERE id_empleado = ?', 
+      [id]
+    );
+    console.log('✅ Empleado eliminado definitivamente');
+
+    console.log(`🎉 Eliminación completada para empleado: ${id}`);
+    return result;
+
+  } catch (error) {
+    console.error('💥 Error crítico en eliminación en cascada:', error);
+    console.error('Stack trace:', error.stack);
+    throw new Error(`Error en eliminación: ${error.message}`);
   }
+}
+
 
   // Buscar empleados por término
   static async buscar(termino) {

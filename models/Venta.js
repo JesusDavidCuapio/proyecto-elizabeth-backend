@@ -136,14 +136,15 @@ class Venta {
 
 
 /**
- * Obtener todas las ventas con detalles completos
+ * Obtener todas las ventas usando consulta directa con mejor formato
  */
 static async obtenerVentasCompletas() {
   try {
     const query = `
       SELECT 
         v.id_venta,
-        DATE_FORMAT(v.fecha_venta, '%Y-%m-%d %H:%i:%s') as fecha_venta,
+        v.fecha_venta,
+        DATE_FORMAT(v.fecha_venta, '%d/%m/%Y %H:%i') as fecha_hora_formateada,
         v.total,
         v.pago_cliente,
         v.cambio,
@@ -158,11 +159,12 @@ static async obtenerVentasCompletas() {
       JOIN detalle_ventas dv ON v.id_venta = dv.id_venta
       JOIN productos p ON dv.id_producto = p.id_producto
       WHERE v.estado = 'Completada'
-      GROUP BY v.id_venta
+      GROUP BY v.id_venta, v.fecha_venta, v.total, v.pago_cliente, v.cambio, e.nombre_completo
       ORDER BY v.fecha_venta DESC
     `;
     
     const [rows] = await db.execute(query);
+    console.log('Ventas obtenidas con fecha y hora:', rows.length);
     return rows;
     
   } catch (error) {
